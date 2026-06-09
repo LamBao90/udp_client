@@ -1,0 +1,291 @@
+substitutions:
+  name: udp-client-example
+  friendly_name: udp client example
+
+  deviceId: 69
+  udpServer: "fded:fd60:cdf3:44f7:f461:67c8:d602:df97" #IPv6:MeshLocalAddress in OTBR webpage
+  udpPort: 5683
+  localPort: 5688
+
+  type_heartbeat: 255
+  type_send_ota: 254
+  type_send_light: 11
+
+
+  type_receive_ota: 253
+  type_receive_light: 21
+
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+  on_boot:
+    priority: -100
+    then:
+      - h2_deep_sleep.prevent:
+          id: deep_sleep_control
+      - script.execute: restart_sleep_timer
+      
+esp32:
+  board: esp32-h2-devkitm-1
+  framework:
+    type: esp-idf
+    sdkconfig_options:    
+      CONFIG_LWIP_MAX_SOCKETS: "16"
+      CONFIG_LWIP_SO_RCVBUF: "y"
+      CONFIG_LWIP_SO_REUSE: "y"
+external_components:
+  - source:
+      type: local
+      path: external_components
+    components: [h2_deep_sleep, udp_client]
+
+logger:
+#  baud_rate: 0
+#  hardware_uart: USB_SERIAL_JTAG
+#  level: DEBUG
+
+network:
+  enable_ipv6: True
+  
+openthread:
+  device_type: MTD
+  tlv: !secret tlvs
+  force_dataset: True
+
+  
+# Enable Home Assistant API
+api:
+  id: my_api
+  encryption:
+    key: "c9IMD875QKnK/O1BqJYJchKS2qruQRsQaAC536qgtIo="
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+    password: "edcbae8bc1d91fd73fb0a3c97808b517"
+    on_end:
+      then:
+        - lambda: 'id(ota_handle).execute(true);'
+
+safe_mode:
+  disabled: True
+
+h2_deep_sleep:
+  id: deep_sleep_control                           
+  wakeup_pin:                        
+    number: GPIO10
+    inverted: false
+    mode:
+      input: true
+      pullup: false
+    allow_other_uses: true
+  #wakeup_pin_mode: INVERT_WAKEUP
+
+udp_client:
+  id: my_udp_client
+  server_address: ${udpServer}
+  server_port: ${udpPort}
+  local_port: ${localPort}
+
+
+globals:
+  - id: in_ota
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+    
+  - id: waiting
+    type: bool
+    restore_value: no
+    initial_value: 'true'
+
+  - id: my_light
+    type: int[4]
+    restore_value: no
+    initial_value: '{0, 0, 0, 0}'
+  - id: ota_count
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: bat_lvl
+    type: int
+    restore_value: no
+    initial_value: '29'
+  - id: in_wake
+    type: int
+    restore_value: no
+    initial_value: '1'
+  - id: in_charge
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+  - id: my_data
+    type: uint[5]
+    restore_value: no
+    initial_value: '{0, 0, 0, 0, 0}'
+  # Counter for sent packets
+  - id: send_counter
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+text_sensor:
+  - platform: openthread_info
+    role:
+      id: ot_role
+      internal: True
+      on_value:
+        - lambda: |-
+            id(my_udp_client).thread_connected_ = (id(ot_role).state == "child");
+        - script.execute: restart_sleep_timer
+        - script.execute: send_heartbeat
+        #- script.execute: refresh
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: 10
+      mode: INPUT_PULLUP
+      #ignore_strapping_warning: true
+      inverted: true
+      allow_other_uses: true
+    id: button_10
+    internal: true
+    on_press: 
+      then:
+      - script.execute: restart_sleep_timer
+      
+      - if:
+          condition:
+            lambda: 'return !id(waiting);'
+          then:
+            - script.execute: button10
+
+  - platform: udp_client
+    udp_client_id: my_udp_client
+    #name: "UDP Response Received"
+    id: udp_response
+    device_class: connectivity
+    
+    # Trigger actions when response received
+    on_press:
+      then:
+        - lambda: |-
+            
+            id(my_data)[0] = id(my_udp_client).get_last_type();
+            id(my_data)[1] = id(my_udp_client).get_last_data1();
+            id(my_data)[2] = id(my_udp_client).get_last_data2();
+            id(my_data)[3] = id(my_udp_client).get_last_data3();
+            id(my_data)[4] = id(my_udp_client).get_last_data4();
+
+        - script.execute: process_data
+
+interval:
+  - interval: 5s
+    then:
+      - script.execute: send_heartbeat
+      - if:
+          condition:
+            lambda: 'return (id(in_ota) == true);'
+          then:
+            lambda: |-
+              if (id(ota_count)++ >15){
+                id(ota_handle).execute(false);
+                id(ota_count) = 0;
+                ESP_LOGI("script","OTA success, enable deep_sleep!");
+                id(restart_sleep_timer).execute();
+              }
+
+script:
+  - id: restart_sleep_timer
+    mode: restart
+    then:
+      - h2_deep_sleep.prevent:
+          id: deep_sleep_control    
+      - if:
+          condition:
+            lambda: 'return (id(in_ota) == false);'
+          then:
+            - delay: 10s
+            - lambda: |-
+                if (!id(in_ota)){
+                  id(in_wake) = 0;
+                  id(send_heartbeat).execute();
+                  id(deep_sleep_control).allow_deep_sleep();
+                  id(deep_sleep_control).begin_sleep();
+                }
+            
+  - id: button10
+    mode: single
+    then:
+      - lambda: 'id(send_udp).execute(${type_send_light},!id(my_light)[0],id(my_light)[1],id(my_light)[2],id(my_light)[3]);'
+
+  - id: send_heartbeat
+    mode: single
+    then:
+      - if:
+          condition:
+            text_sensor.state:
+              id: ot_role
+              state: 'child'
+              
+          then:
+            - lambda: 'id(send_udp).execute(${type_heartbeat},0,id(in_charge),id(in_wake),id(bat_lvl));'
+
+  - id: send_udp
+    mode: single
+    parameters: 
+      type: uint
+      data1: uint
+      data2: uint
+      data3: uint
+      data4: uint
+    then:
+      lambda: |-
+        esphome::udp_client::UdpPacket packet;
+        packet.id = ${deviceId};
+        packet.type = type;
+        packet.seq = id(send_counter)++;
+        packet.data1 = data1;
+        packet.data2 = data2;
+        packet.data3 = data3;
+        packet.data4 = data4;
+        bool success = id(my_udp_client).post(packet);
+        //if (!success) {
+        //ESP_LOGE("button", "✗ Failed to send packet");
+        //}
+
+  - id: ota_handle
+    mode: single
+    parameters: 
+      cmd: bool
+    then:
+      lambda: |-
+        id(in_ota) = cmd;
+        if (cmd){
+          id(send_udp).execute(${type_send_ota},1,0,0,0);
+        }
+        else{
+          id(send_udp).execute(${type_send_ota},0,0,0,0);
+        }
+
+  - id: process_data
+    mode: single
+    then:
+      lambda: |-
+        if (id(my_data)[0] == ${type_receive_ota}){
+          id(ota_handle).execute(id(my_data)[1]==1);
+        }
+        else if (id(my_data)[0] == ${type_receive_light}){
+          id(my_light)[0] = id(my_data)[1];
+          id(my_light)[1] = id(my_data)[2];
+          id(my_light)[2] = id(my_data)[3];
+          id(my_light)[3] = id(my_data)[4];
+        }
+        ////
+        if (id(waiting)){
+          id(waiting) = false;
+        }
+        id(my_udp_client).reset_sensor();
+    
