@@ -63,6 +63,8 @@ In the provided example, the `api` and `logger` blocks are left active but are c
 To integrate this into your project, place the `udp_client` files inside your local `external_components` directory alongside the [wacsy ESP32-H2 Deep Sleep component](https://github.com/wacsy/esphh2/tree/h2-external-comps-deepsleep).
 
 Below is the essential structure based on `udp-client-example.yaml`:
+## ⚠️ Note: GPIO-10 is wake-up pin, in this setting external pull-down is required!
+
 
 ```yaml
 substitutions:
