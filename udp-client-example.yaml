@@ -146,9 +146,9 @@ binary_sensor:
   - platform: gpio
     pin:
       number: 10
-      mode: INPUT_PULLUP
+      #mode: INPUT_PULLUP
       #ignore_strapping_warning: true
-      inverted: true
+      #inverted: true
       allow_other_uses: true
     id: button_10
     internal: true
