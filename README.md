@@ -32,7 +32,7 @@ This component replaces the Native API's push/pull pattern with an instant **UDP
 ## 🛠 Features
 
 * **IPv6 Native:** Operates entirely within the Thread Mesh Local routing plane (`AF_INET6`).
-* **Optimized Data Structure:** Sends packed C-structs (`UdpPacket`, 11 bytes) containing device IDs, sequential counts, custom command types, and flexible data slots to keep payloads micro-sized.
+* **Optimized Data Structure:** Sends packed C-structs (`UdpPacket`, 12 bytes) containing device IDs, sequential counts, custom command types, and flexible data slots to keep payloads micro-sized.
 * **Bi-directional Feedback:** Includes an integrated ESPHome `binary_sensor` that trips to `True` the exact moment a matching UDP packet response is parsed from the server, functioning as an instant confirmation toggle.
 * **Deep Sleep Coordination:** Works hand-in-hand with custom external deep-sleep routines to strictly maximize sleep intervals.
 
@@ -68,7 +68,7 @@ Below is the essential structure based on `udp-client-example.yaml`:
 substitutions:
   name: udp-client-example
   deviceId: 69
-  udpServer: "fded:fd60:cdf3:44f7:f461:67c8:d602:df97" # Your Thread Border Router IPv6
+  udpServer: "fded:fd60:cdf3:44f7:f461:67c8:d602:df97" # Your Thread Border Router IPv6 (MeshLocalAddress in OTBR webpage)
   udpPort: 5683
   localPort: 5688
 
@@ -145,6 +145,374 @@ struct UdpPacket {
 ```
 
 When building your parsing logic in **Node-RED** via a standard UDP input node, make sure to read the incoming buffer using the corresponding byte indices (respecting the 16-bit unsigned integers for the sequence and data fields) before pushing the final payload object over to your MQTT broker.
+
+## Here's an example Node-red flow
+### 1. Udp handle
+![UDP receive and send](/images/node-udp-handle.jpg)
+
+udp in with port above
+```yaml
+  udpPort: 5683
+  #localPort: 5688 #udp out ip and port will define in payload message
+```
+in packet parser
+```cpp
+const buf = msg.payload;
+if (buf.length < 12) return null;
+
+const pkt = {
+  id:    buf.readUInt8(0),
+  type:  buf.readUInt8(1),
+  seq:   buf.readUInt16LE(2),
+  data1: buf.readUInt16LE(4),
+  data2: buf.readUInt16LE(6),
+  data3: buf.readUInt16LE(8),
+  data4: buf.readUInt16LE(10),
+  ip:    msg.ip,
+  port:  msg.port,
+  ts:    Date.now()
+};
+
+msg.payload = pkt;
+return msg;
+```
+in queue push
+```cpp
+let queue = flow.get("udpQueue") || [];
+queue.push(msg);
+flow.set("udpQueue", queue);
+
+if (!flow.get("udpSending")) {
+    flow.set("udpSending", true);
+    node.send({ topic: "kick" });
+}
+
+return null;
+```
+in queue pop
+```cpp
+let queue = flow.get("udpQueue") || [];
+
+if (queue.length === 0) {
+    flow.set("udpSending", false);
+    return null;
+}
+
+let out = queue.shift();
+flow.set("udpQueue", queue);
+
+return out;
+```
+### 2. Splitter
+Handle multiple device with `deviceId:`
+![](/images/splitter.jpg)
+
+### 3. Main flow
+udp respones and send mqtt discovery to Home assistant
+![](/images/flow.jpg)
+in device manager
+```cpp
+const pkt = msg.payload;
+//const id = pkt.id.toString();
+
+let devices = flow.get("devices") || {};
+
+// init device if first seen
+if (!devices) {
+    devices = {
+        id: pkt.id,
+        last_seq: pkt.seq,
+        last_seen: pkt.ts,
+        ip: pkt.ip,
+        port: pkt.port,
+        online: true
+    };
+}
+const lastState = devices.online;
+
+// heartbeat handling
+if (pkt.type === 255) {
+    devices.id        = pkt.id
+    devices.last_seen = pkt.ts;
+    devices.last_seq  = pkt.seq;
+    devices.ip        = pkt.ip;
+    devices.port      = pkt.port;
+    devices.online    = (pkt.data3 === 1)?true:false;
+}
+
+// special message for ota
+let isOta = flow.get("is_ota");
+if (isOta === undefined) {
+    isOta = false;
+    flow.set("is_ota", false);
+}
+
+if (pkt.type === 254) {
+    flow.set("is_ota", (pkt.data1===0)?false:true);
+}
+
+// save registry
+flow.set("devices", devices);
+
+// set
+//flow.set("is_ota", true);
+
+// get
+//const isOta = flow.get("is_ota") || false;
+
+// pass through for further logic
+msg.payload = pkt;
+
+if (!lastState && devices.online) {
+    const isOta = flow.get("is_ota") || false;
+    let msg1 = { payload: isOta };
+    return [msg, msg, msg1];
+}
+else{
+    return [null, msg, null];
+}
+```
+in mqtt discovery
+```cpp
+const id = msg.payload.id;
+if (id == null) {
+    node.error("Missing msg.id");
+    return null;
+}
+
+msg.topic = `homeassistant/device/remote_${id}/config`;
+
+msg.payload = {
+  dev: {
+    ids: id,
+    name: `Remote ${id}`,
+    mf: "DIY",
+    mdl: "ESP32-H2 Remote",
+    sw: "1.0",
+    sn: id,
+    hw: "rev1"
+  },
+
+  o: {
+    name: "udp2mqtt",
+    sw: "0.1",
+    url: "http://local-node-red"
+  },
+
+  state_topic: `remote/${id}/state`,
+  qos: 1,
+
+  cmps: {
+    ota: {
+      p: "switch",
+      name: "OTA",
+      unique_id: `remote_${id}_ota`,
+      command_topic: `remote/${id}/cmd/ota`,
+      value_template: "{{ value_json.ota }}",
+      payload_on: "true",
+      payload_off: "false"
+    },
+
+    battery: {
+      p: "sensor",
+      name: "Battery",
+      device_class: "battery",
+      unit_of_measurement: "%",
+      value_template: "{{ value_json.battery }}",
+      unique_id: `remote_${id}_battery`
+    },
+
+    charging: {
+      p: "binary_sensor",
+      name: "Charging",
+      device_class: "battery_charging",
+      value_template: "{{ value_json.charging }}",
+      payload_on: "true",
+      payload_off: "false",
+      unique_id: `remote_${id}_charging`
+    },
+    wake: {
+      p: "binary_sensor",
+      name: "wake",
+      value_template: "{{ value_json.wake }}",
+      payload_on: "true",
+      payload_off: "false",
+      unique_id: `remote_${id}_wake`
+    },
+    ip: {
+      p: "sensor",
+      name: "IP Address",
+      value_template: "{{ value_json.ip }}",
+      unique_id: `remote_${id}_ip`
+    },
+
+    port: {
+      p: "sensor",
+      name: "Port",
+      value_template: "{{ value_json.port }}",
+      unique_id: `remote_${id}_port`
+    },
+    last_seen: {
+      p: "sensor",
+      name: "Last Seen",
+      value_template: "{{ value_json.lastseen }}",
+      unique_id: `remote_${id}_lastseen`
+    }
+  }
+};
+
+return msg;
+```
+in cmd parser
+```cpp
+const buf = msg.payload;
+if (buf.type === 255){//heart beat message
+    const isOta = flow.get("is_ota") || false;
+    const remote = {
+        id: buf.id,
+        ota: (isOta)?"true":"false",
+        charging: (buf.data2===0)?"false":"true",
+        wake: (buf.data3===0)?"false":"true",
+        bat: buf.data4,
+        ip: buf.ip,
+        port:   buf.port,
+        ts:     buf.ts
+    };
+    msg.payload = remote;
+    return [msg,null,null,null,null];
+}
+
+else if (buf.type === 11){
+    const light = [
+        (buf.data1===0)?false:true,
+        (buf.data2===0)?false:true,
+        (buf.data3===0)?false:true,
+        (buf.data4===0)?false:true
+    ];
+    msg.payload = light;
+    return [null,msg,null,null,null];
+}
+else if (buf.type === 12){
+    const ac = {
+        mode: buf.data1,
+        temp: buf.data2,
+        fan_mode: buf.data3,
+        swing: buf.data4
+    };
+    msg.payload = ac;
+    return [null,null,msg,null,null];
+}
+else if (buf.type === 13){
+    const fan = {
+        power: (buf.data1===0)?false:true,
+        speed: buf.data2,
+        swing: (buf.data3===0)?false:true,
+    };
+    msg.payload = fan;
+    return [null,null,null,msg,null];
+}
+else if (buf.type === 14){
+    const lamp = [
+        buf.data1,
+        buf.data2,
+        buf.data3,
+        buf.data4
+    ];
+    msg.payload = lamp;
+    return [null,null,null,null,msg];
+}
+return null;
+```
+in remote infor
+```cpp
+const pkt = msg.payload;
+const id = pkt.id;
+
+const local = new Date(pkt.ts).toLocaleString("vi-VN", { //change to your local
+    hour12: false
+});
+
+msg.topic = `remote/${id}/state`;
+msg.payload = {
+  battery: pkt.bat,
+  charging: pkt.charging,
+  ip: pkt.ip,
+  port: pkt.port,
+  wake: pkt.wake,
+  lastseen: local,
+  ota: pkt.ota
+};
+return msg;
+```
+ha cmd mqtt topic `remote/69/cmd/ota`
+
+in form OTA cmd
+```cpp
+const pkt = {
+  type:  253, //Set OTA command
+  data1: (msg.payload)?1:0,
+  data2: 0,
+  data3: 0,
+  data4: 0,
+};
+msg.payload = pkt;
+return msg;
+```
+in create udp packet
+```cpp
+const devices = flow.get("devices");
+const dev_id = devices.id;
+const pkt = msg.payload;
+
+let counter = flow.get("counter");
+if (counter === undefined) {
+    counter = 0;
+    flow.set("counter", 0);
+}
+
+if (!devices || !devices.online) return null;
+
+// build binary packet
+const buf = Buffer.alloc(12);
+buf.writeUInt8(dev_id, 0);
+buf.writeUInt8(pkt.type, 1);
+buf.writeUInt16LE(counter & 0xffff, 2);
+buf.writeUInt16LE(pkt.data1, 4);
+buf.writeUInt16LE(pkt.data2, 6);
+buf.writeUInt16LE(pkt.data3, 8);
+buf.writeUInt16LE(pkt.data4, 10);
+
+counter++;
+flow.set("counter", counter);
+
+msg.payload = buf;
+msg.ip = devices.ip;
+msg.port = devices.port;
+return msg;
+```
+check heart beat to set device offline (in case miss the last messge/ power lost)
+```cpp
+const devices = flow.get("devices") || {};
+const now = Date.now();
+const TIMEOUT = 15000; // 15s = 3 heartbeat
+
+let offline = [];
+
+    if (devices.online &&
+        now - devices.last_seen > TIMEOUT) {
+        devices.online = false;
+    }
+
+
+flow.set("devices", devices);
+return null;
+```
+
+after successfull boot, your device will show in mqtt device automatically.
+![](/images/mqtt%20device%20dashboard.jpg)
+
+
+
 
 ---
 
