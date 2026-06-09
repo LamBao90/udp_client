@@ -129,7 +129,7 @@ binary_sensor:
 
 ## 📦 Packet Structure Reference (C++ & Node-RED)
 
-The data payload passing over the wire maps directly to an 11-byte packet defined in `udp_client.h`:
+The data payload passing over the wire maps directly to an 12-byte packet defined in `udp_client.h`:
 
 ```cpp
 struct UdpPacket {
