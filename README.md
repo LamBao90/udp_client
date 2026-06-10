@@ -360,6 +360,7 @@ msg.payload = {
     last_seen: {
       p: "sensor",
       name: "Last Seen",
+      device_class: "timestamp",
       value_template: "{{ value_json.lastseen }}",
       unique_id: `remote_${id}_lastseen`
     }
@@ -433,10 +434,10 @@ in remote infor
 const pkt = msg.payload;
 const id = pkt.id;
 
-const local = new Date(pkt.ts).toLocaleString("vi-VN", { //change to your local
-    hour12: false
-});
-
+// let local = new Date(pkt.ts).toLocaleString("vi-VN", {
+//     hour12: false
+// });
+const local = new Date(pkt.ts).toISOString();
 msg.topic = `remote/${id}/state`;
 msg.payload = {
   battery: pkt.bat,
@@ -448,6 +449,7 @@ msg.payload = {
   ota: pkt.ota
 };
 return msg;
+
 ```
 ha cmd mqtt topic `remote/69/cmd/ota`
 
