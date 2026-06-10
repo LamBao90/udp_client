@@ -19,6 +19,9 @@ While ESPHome's native API is excellent for always-on Wi-Fi devices, it falls sh
 1. **Inverted Architecture (Server vs. Client):** In the native API design, the ESPHome device acts as the *server* and Home Assistant acts as the *client*. When a device wakes up from Deep Sleep, it must wait for Home Assistant to notice it is online and initiate a connection. This polling interval is unpredictable and introduces massive latency.
 2. **Connection Overhead:** The TCP handshake and encryption setup of the Native API keep the device awake much longer than necessary, draining critical battery life.
 
+### The MQTT Alternative
+MQTT is recommend alternative esphome native api, note that MQTT works on `ipv4`, so `NAT64` option in Thread Border Router add-on configuration enable required (default disable).
+
 ### The UDP Alternative
 
 This component replaces the Native API's push/pull pattern with an instant **UDP Push** model.
