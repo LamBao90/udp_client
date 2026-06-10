@@ -1,0 +1,1364 @@
+[
+    {
+        "id": "590f2d95dadb3298",
+        "type": "tab",
+        "label": "UDP handle",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "1cc4601c32252d57",
+        "type": "tab",
+        "label": "splitter",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "c1c0c66244e7b7f9",
+        "type": "tab",
+        "label": "remote 1",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "84f060fbe22efd5f",
+        "type": "tab",
+        "label": "example",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "7358b249563a73d7",
+        "type": "mqtt-broker",
+        "name": "",
+        "broker": "localhost",
+        "port": 1883,
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": 4,
+        "keepalive": 60,
+        "cleansession": true,
+        "autoUnsubscribe": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthRetain": "false",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closeRetain": "false",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willRetain": "false",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "80b0defcd0b23807",
+        "type": "server",
+        "name": "Home Assistant",
+        "version": 6,
+        "addon": true,
+        "rejectUnauthorizedCerts": true,
+        "ha_boolean": [
+            "y",
+            "yes",
+            "true",
+            "on",
+            "home",
+            "open"
+        ],
+        "connectionDelay": true,
+        "cacheJson": true,
+        "heartbeat": false,
+        "heartbeatInterval": 30,
+        "areaSelector": "friendlyName",
+        "deviceSelector": "friendlyName",
+        "entitySelector": "friendlyName",
+        "statusSeparator": ": ",
+        "statusYear": "hidden",
+        "statusMonth": "short",
+        "statusDay": "numeric",
+        "statusHourCycle": "default",
+        "statusTimeFormat": "h:m",
+        "enableGlobalContextStore": false
+    },
+    {
+        "id": "3457b771182e025a",
+        "type": "udp in",
+        "z": "590f2d95dadb3298",
+        "name": "inbound",
+        "iface": "",
+        "port": "5683",
+        "ipv": "udp6",
+        "multicast": "false",
+        "group": "",
+        "datatype": "buffer",
+        "x": 350,
+        "y": 220,
+        "wires": [
+            [
+                "dda8723487e5e6c7"
+            ]
+        ]
+    },
+    {
+        "id": "dda8723487e5e6c7",
+        "type": "function",
+        "z": "590f2d95dadb3298",
+        "name": "parse packet",
+        "func": "const buf = msg.payload;\nif (buf.length < 12) return null;\n\nconst pkt = {\n  id:    buf.readUInt8(0),\n  type:  buf.readUInt8(1),\n  seq:   buf.readUInt16LE(2),\n  data1: buf.readUInt16LE(4),\n  data2: buf.readUInt16LE(6),\n  data3: buf.readUInt16LE(8),\n  data4: buf.readUInt16LE(10),\n  ip:    msg.ip,\n  port:  msg.port,\n  ts:    Date.now()\n};\n\nmsg.payload = pkt;\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 550,
+        "y": 220,
+        "wires": [
+            [
+                "b2865d548eb9849c"
+            ]
+        ]
+    },
+    {
+        "id": "b2865d548eb9849c",
+        "type": "link out",
+        "z": "590f2d95dadb3298",
+        "name": "to device manager",
+        "mode": "link",
+        "links": [
+            "81d6462116011171"
+        ],
+        "x": 695,
+        "y": 220,
+        "wires": []
+    },
+    {
+        "id": "2df6a19b83996a59",
+        "type": "link in",
+        "z": "590f2d95dadb3298",
+        "name": "link in 2",
+        "links": [
+            "f734028df3c03bfc",
+            "ef3fe7363de538fc"
+        ],
+        "x": 175,
+        "y": 280,
+        "wires": [
+            [
+                "edf62bf0882e2644"
+            ]
+        ]
+    },
+    {
+        "id": "edf62bf0882e2644",
+        "type": "function",
+        "z": "590f2d95dadb3298",
+        "name": "queue push",
+        "func": "let queue = flow.get(\"udpQueue\") || [];\nqueue.push(msg);\nflow.set(\"udpQueue\", queue);\n\nif (!flow.get(\"udpSending\")) {\n    flow.set(\"udpSending\", true);\n    node.send({ topic: \"kick\" });\n}\n\nreturn null;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 350,
+        "y": 280,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "f601011730f47978",
+        "type": "inject",
+        "z": "590f2d95dadb3298",
+        "name": "",
+        "props": [],
+        "repeat": "0.2",
+        "crontab": "",
+        "once": false,
+        "onceDelay": "0.05",
+        "topic": "",
+        "x": 310,
+        "y": 340,
+        "wires": [
+            [
+                "c71a1d59b1d97574"
+            ]
+        ]
+    },
+    {
+        "id": "c71a1d59b1d97574",
+        "type": "function",
+        "z": "590f2d95dadb3298",
+        "name": "queue pop",
+        "func": "let queue = flow.get(\"udpQueue\") || [];\n\nif (queue.length === 0) {\n    flow.set(\"udpSending\", false);\n    return null;\n}\n\nlet out = queue.shift();\nflow.set(\"udpQueue\", queue);\n\nreturn out;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 510,
+        "y": 340,
+        "wires": [
+            [
+                "387953556f4c3884"
+            ]
+        ]
+    },
+    {
+        "id": "387953556f4c3884",
+        "type": "udp out",
+        "z": "590f2d95dadb3298",
+        "name": "outbound",
+        "addr": "",
+        "iface": "",
+        "port": "",
+        "ipv": "udp6",
+        "outport": "",
+        "base64": false,
+        "multicast": "false",
+        "x": 760,
+        "y": 340,
+        "wires": []
+    },
+    {
+        "id": "81d6462116011171",
+        "type": "link in",
+        "z": "1cc4601c32252d57",
+        "name": "link in 1",
+        "links": [
+            "b2865d548eb9849c"
+        ],
+        "x": 165,
+        "y": 120,
+        "wires": [
+            [
+                "db5dc056319b0c10"
+            ]
+        ]
+    },
+    {
+        "id": "db5dc056319b0c10",
+        "type": "switch",
+        "z": "1cc4601c32252d57",
+        "name": "",
+        "property": "payload.id",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "11",
+                "vt": "num"
+            },
+            {
+                "t": "eq",
+                "v": "69",
+                "vt": "num"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 2,
+        "x": 270,
+        "y": 120,
+        "wires": [
+            [
+                "9d9fed4a9df4e0d8"
+            ],
+            [
+                "8aba9e38d633459a"
+            ]
+        ]
+    },
+    {
+        "id": "9d9fed4a9df4e0d8",
+        "type": "link out",
+        "z": "1cc4601c32252d57",
+        "name": "link out 1",
+        "mode": "link",
+        "links": [
+            "a8a0d9457bf8d591"
+        ],
+        "x": 505,
+        "y": 60,
+        "wires": []
+    },
+    {
+        "id": "8aba9e38d633459a",
+        "type": "link out",
+        "z": "1cc4601c32252d57",
+        "name": "link out 3",
+        "mode": "link",
+        "links": [
+            "b006d283ceb9fb51"
+        ],
+        "x": 505,
+        "y": 140,
+        "wires": []
+    },
+    {
+        "id": "a8a0d9457bf8d591",
+        "type": "link in",
+        "z": "c1c0c66244e7b7f9",
+        "name": "remote1",
+        "links": [
+            "9d9fed4a9df4e0d8"
+        ],
+        "x": 65,
+        "y": 120,
+        "wires": [
+            [
+                "83c2bf66bd0d8d4d"
+            ]
+        ]
+    },
+    {
+        "id": "83c2bf66bd0d8d4d",
+        "type": "function",
+        "z": "c1c0c66244e7b7f9",
+        "name": "device manager",
+        "func": "\nconst pkt = msg.payload;\n//const id = pkt.id.toString();\n\nlet devices = flow.get(\"devices\") || {};\n\n// init device if first seen\nif (!devices) {\n    devices = {\n        id: pkt.id,\n        last_seq: pkt.seq,\n        last_seen: pkt.ts,\n        ip: pkt.ip,\n        port: pkt.port,\n        online: true\n    };\n}\nconst lastState = devices.online;\n\n// heartbeat handling\nif (pkt.type === 255) {\n    devices.id        = pkt.id\n    devices.last_seen = pkt.ts;\n    devices.last_seq  = pkt.seq;\n    devices.ip        = pkt.ip;\n    devices.port      = pkt.port;\n    devices.online    = (pkt.data3 === 1)?true:false;\n}\n\n// special message for ota\nlet isOta = flow.get(\"is_ota\");\nif (isOta === undefined) {\n    isOta = false;\n    flow.set(\"is_ota\", false);\n}\n\nif (pkt.type === 254) {\n    flow.set(\"is_ota\", (pkt.data1===0)?false:true);\n}\n\n// save registry\nflow.set(\"devices\", devices);\n\n// set\n//flow.set(\"is_ota\", true);\n\n// get\n//const isOta = flow.get(\"is_ota\") || false;\n\n// pass through for further logic\nmsg.payload = pkt;\n\nif (!lastState && devices.online) {\n    const isOta = flow.get(\"is_ota\") || false;\n    let msg1 = { payload: isOta };\n    return [msg, msg, msg1];\n}\nelse{\n    return [null, msg, null];\n}\n\n",
+        "outputs": 3,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "// Code added here will be run once\n// whenever the node is started.\n//flow.set(\"is_ota\", false);",
+        "finalize": "",
+        "libs": [],
+        "x": 180,
+        "y": 120,
+        "wires": [
+            [
+                "9e22e21651508f42"
+            ],
+            [
+                "9a4484ef09e5792d"
+            ],
+            [
+                "ef010432c79e13fe"
+            ]
+        ]
+    },
+    {
+        "id": "a2229d1789104492",
+        "type": "inject",
+        "z": "c1c0c66244e7b7f9",
+        "name": "",
+        "props": [],
+        "repeat": "5",
+        "crontab": "",
+        "once": true,
+        "onceDelay": "5",
+        "topic": "",
+        "x": 90,
+        "y": 860,
+        "wires": [
+            [
+                "b5e36b58e854757c"
+            ]
+        ]
+    },
+    {
+        "id": "b5e36b58e854757c",
+        "type": "function",
+        "z": "c1c0c66244e7b7f9",
+        "name": "check heartbeat msg",
+        "func": "const devices = flow.get(\"devices\") || {};\nconst now = Date.now();\nconst TIMEOUT = 15000; // 15s = 3 heartbeat\n\nlet offline = [];\n\n    if (devices.online &&\n        now - devices.last_seen > TIMEOUT) {\n        devices.online = false;\n    }\n\n\nflow.set(\"devices\", devices);\nreturn null;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 300,
+        "y": 860,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "9a4484ef09e5792d",
+        "type": "function",
+        "z": "c1c0c66244e7b7f9",
+        "name": "parse cmd",
+        "func": "const buf = msg.payload;\nif (buf.type === 255){//heart beat message\n    const isOta = flow.get(\"is_ota\") || false;\n    const remote = {\n        id: buf.id,\n        ota: (isOta)?\"true\":\"false\",\n        charging: (buf.data2===0)?\"false\":\"true\",\n        wake: (buf.data3===0)?\"false\":\"true\",\n        bat: buf.data4,\n        ip: buf.ip,\n        port:   buf.port,\n        ts:     buf.ts\n    };\n    msg.payload = remote;\n    return [msg,null,null,null,null];\n}\n\nelse if (buf.type === 11){\n    const light = [\n        (buf.data1===0)?false:true,\n        (buf.data2===0)?false:true,\n        (buf.data3===0)?false:true,\n        (buf.data4===0)?false:true\n    ];\n    msg.payload = light;\n    return [null,msg,null,null,null];\n}\nelse if (buf.type === 12){\n    const ac = {\n        mode: buf.data1,\n        temp: buf.data2,\n        fan_mode: buf.data3,\n        swing: buf.data4\n    };\n    msg.payload = ac;\n    return [null,null,msg,null,null];\n}\nelse if (buf.type === 13){\n    const fan = {\n        power: (buf.data1===0)?false:true,\n        speed: buf.data2,\n        swing: (buf.data3===0)?false:true,\n    };\n    msg.payload = fan;\n    return [null,null,null,msg,null];\n}\nelse if (buf.type === 14){\n    const lamp = [\n        buf.data1,\n        buf.data2,\n        buf.data3,\n        buf.data4\n    ];\n    msg.payload = lamp;\n    return [null,null,null,null,msg];\n}\nreturn null;",
+        "outputs": 5,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 390,
+        "y": 180,
+        "wires": [
+            [
+                "44a36afb72510ce7"
+            ],
+            [
+                "38e469889e57f0c1"
+            ],
+            [
+                "9cd30b868554b4ec"
+            ],
+            [
+                "cbe7429a70d6c646"
+            ],
+            [
+                "97d5e82b3c9f4ef9"
+            ]
+        ]
+    },
+    {
+        "id": "44a36afb72510ce7",
+        "type": "function",
+        "z": "c1c0c66244e7b7f9",
+        "name": "remote info",
+        "func": "const pkt = msg.payload;\nconst id = pkt.id;\n\n// let local = new Date(pkt.ts).toLocaleString(\"vi-VN\", {\n//     hour12: false\n// });\nconst local = new Date(pkt.ts).toISOString();\nmsg.topic = `remote/${id}/state`;\nmsg.payload = {\n  battery: pkt.bat,\n  charging: pkt.charging,\n  ip: pkt.ip,\n  port: pkt.port,\n  wake: pkt.wake,\n  lastseen: local,\n  ota: pkt.ota\n};\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 610,
+        "y": 120,
+        "wires": [
+            [
+                "d00fc71a1573e119"
+            ]
+        ]
+    },
+    {
+        "id": "38e469889e57f0c1",
+        "type": "function",
+        "z": "c1c0c66244e7b7f9",
+        "name": "light",
+        "func": "let lights = [\n  \"light.esp32h2hello_blueled\",\n  \"light.esp32h2hello_dummy1\",\n  \"light.esp32h2hello_dummy2\"\n];\n\nlet states = msg.payload; \n\nlet messages = [];\n\nfor (let i = 0; i < lights.length; i++) {\n\n    messages.push({\n        payload: {\n            domain: \"light\",\n            service: states[i] ? \"turn_on\" : \"turn_off\",\n            entity_id: lights[i]\n        }\n    });\n}\n\nreturn [messages];",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 590,
+        "y": 160,
+        "wires": [
+            [
+                "7afa20d6a194cba1"
+            ]
+        ]
+    },
+    {
+        "id": "9cd30b868554b4ec",
+        "type": "function",
+        "z": "c1c0c66244e7b7f9",
+        "name": "ac",
+        "func": "\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 590,
+        "y": 200,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "cbe7429a70d6c646",
+        "type": "function",
+        "z": "c1c0c66244e7b7f9",
+        "name": "fan",
+        "func": "\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 590,
+        "y": 240,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "97d5e82b3c9f4ef9",
+        "type": "function",
+        "z": "c1c0c66244e7b7f9",
+        "name": "lamp",
+        "func": "const buf = msg.payload;\nfunction clamp(val, min, max) {\n    val = Number(val);\n    if (isNaN(val)) return null;\n    return Math.min(Math.max(val, min), max);\n}\n\nlet entity = \"light.esp32h2hello_rgb_light\";\n\n// --- validate state ---\nlet state = (buf[0] === 1) ? 1 : 0;\n\nif (state === 0) {\n    msg.payload = {\n        domain: \"light\",\n        service: \"turn_off\",\n        entity_id: entity,\n        data: {}\n    };\n    return msg;\n}\n\n// ---- TURN ON ----\nlet data = {};\n\n// --- validate brightness ---\nlet brightness = clamp(buf[1] & 0xff, 1, 255);\n\nif (brightness !== null) {\n    data.brightness = brightness;\n}\n\n// --- validate rgb ---\nlet rgb = [(buf[1] & 0xff00) >> 8,\n            buf[2] & 0xff,\n            (buf[2] & 0xff00) >> 8];\n\nif (Array.isArray(rgb) && rgb.length === 3) {\n\n    let r = clamp(rgb[0], 1, 255);\n    let g = clamp(rgb[1], 1, 255);\n    let b = clamp(rgb[2], 1, 255);\n\n\n    if (r !== null && g !== null && b !== null) {\n\n        if (!(r === 0 && g === 0 && b === 0)) {\n            data.rgb_color = [r, g, b];\n        }\n    }\n}\n\n\nmsg.payload = {\n    domain: \"light\",\n    entity_id: entity,\n    service: \"turn_on\",\n    data: data\n};\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 590,
+        "y": 280,
+        "wires": [
+            [
+                "14672e1121c87988"
+            ]
+        ]
+    },
+    {
+        "id": "d00fc71a1573e119",
+        "type": "mqtt out",
+        "z": "c1c0c66244e7b7f9",
+        "name": "HA mqtt",
+        "topic": "",
+        "qos": "0",
+        "retain": "false",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "7358b249563a73d7",
+        "x": 840,
+        "y": 60,
+        "wires": []
+    },
+    {
+        "id": "9e22e21651508f42",
+        "type": "function",
+        "z": "c1c0c66244e7b7f9",
+        "name": "discoveryMqtt",
+        "func": "const id = msg.payload.id;\nif (id == null) {\n    node.error(\"Missing msg.id\");\n    return null;\n}\n\nmsg.topic = `homeassistant/device/remote_${id}/config`;\n\nmsg.payload = {\n  dev: {\n    ids: id,\n    name: `Remote ${id}`,\n    mf: \"DIY\",\n    mdl: \"ESP32-H2 Remote\",\n    sw: \"1.0\",\n    sn: id,\n    hw: \"rev1\"\n  },\n\n  o: {\n    name: \"udp2mqtt\",\n    sw: \"0.1\",\n    url: \"http://local-node-red\"\n  },\n\n  state_topic: `remote/${id}/state`,\n  qos: 1,\n\n  cmps: {\n    ota: {\n      p: \"switch\",\n      name: \"OTA\",\n      unique_id: `remote_${id}_ota`,\n      command_topic: `remote/${id}/cmd/ota`,\n      value_template: \"{{ value_json.ota }}\",\n      payload_on: \"true\",\n      payload_off: \"false\"\n    },\n\n    battery: {\n      p: \"sensor\",\n      name: \"Battery\",\n      device_class: \"battery\",\n      unit_of_measurement: \"%\",\n      value_template: \"{{ value_json.battery }}\",\n      unique_id: `remote_${id}_battery`\n    },\n\n    charging: {\n      p: \"binary_sensor\",\n      name: \"Charging\",\n      device_class: \"battery_charging\",\n      value_template: \"{{ value_json.charging }}\",\n      payload_on: \"true\",\n      payload_off: \"false\",\n      unique_id: `remote_${id}_charging`\n    },\n    wake: {\n      p: \"binary_sensor\",\n      name: \"wake\",\n      value_template: \"{{ value_json.wake }}\",\n      payload_on: \"true\",\n      payload_off: \"false\",\n      unique_id: `remote_${id}_wake`\n    },\n    ip: {\n      p: \"sensor\",\n      name: \"IP Address\",\n      value_template: \"{{ value_json.ip }}\",\n      unique_id: `remote_${id}_ip`\n    },\n\n    port: {\n      p: \"sensor\",\n      name: \"Port\",\n      value_template: \"{{ value_json.port }}\",\n      unique_id: `remote_${id}_port`\n    },\n    last_seen: {\n      p: \"sensor\",\n      name: \"Last Seen\",\n      device_class: \"timestamp\",\n      value_template: \"{{ value_json.lastseen }}\",\n      unique_id: `remote_${id}_lastseen`\n    }\n  }\n};\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 400,
+        "y": 60,
+        "wires": [
+            [
+                "d00fc71a1573e119"
+            ]
+        ]
+    },
+    {
+        "id": "19df377e0bf5e394",
+        "type": "mqtt in",
+        "z": "c1c0c66244e7b7f9",
+        "name": "HA cmd ota",
+        "topic": "remote/11/cmd/ota",
+        "qos": "0",
+        "datatype": "auto-detect",
+        "broker": "7358b249563a73d7",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 150,
+        "y": 320,
+        "wires": [
+            [
+                "ef010432c79e13fe"
+            ]
+        ]
+    },
+    {
+        "id": "ef010432c79e13fe",
+        "type": "function",
+        "z": "c1c0c66244e7b7f9",
+        "name": "form OTA cmd",
+        "func": "const pkt = {\n  type:  253, //Set OTA command\n  data1: (msg.payload)?1:0,\n  data2: 0,\n  data3: 0,\n  data4: 0,\n};\nmsg.payload = pkt;\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 340,
+        "y": 320,
+        "wires": [
+            [
+                "432e024cf7c52111",
+                "79540064fb90ed2d"
+            ]
+        ]
+    },
+    {
+        "id": "432e024cf7c52111",
+        "type": "function",
+        "z": "c1c0c66244e7b7f9",
+        "name": "create UDP packet",
+        "func": "const devices = flow.get(\"devices\");\nconst dev_id = devices.id;\nconst pkt = msg.payload;\n\nlet counter = flow.get(\"counter\");\nif (counter === undefined) {\n    counter = 0;\n    flow.set(\"counter\", 0);\n}\n\nif (!devices || !devices.online) return null;\n\n// build binary packet\nconst buf = Buffer.alloc(12);\nbuf.writeUInt8(dev_id, 0);\nbuf.writeUInt8(pkt.type, 1);\nbuf.writeUInt16LE(counter & 0xffff, 2);\nbuf.writeUInt16LE(pkt.data1, 4);\nbuf.writeUInt16LE(pkt.data2, 6);\nbuf.writeUInt16LE(pkt.data3, 8);\nbuf.writeUInt16LE(pkt.data4, 10);\n\ncounter++;\nflow.set(\"counter\", counter);\n\nmsg.payload = buf;\nmsg.ip = devices.ip;\nmsg.port = devices.port;\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 950,
+        "y": 500,
+        "wires": [
+            [
+                "f734028df3c03bfc"
+            ]
+        ]
+    },
+    {
+        "id": "f734028df3c03bfc",
+        "type": "link out",
+        "z": "c1c0c66244e7b7f9",
+        "name": "frome remote 1",
+        "mode": "link",
+        "links": [
+            "2df6a19b83996a59"
+        ],
+        "x": 1085,
+        "y": 500,
+        "wires": []
+    },
+    {
+        "id": "92325a0d9e603931",
+        "type": "server-state-changed",
+        "z": "c1c0c66244e7b7f9",
+        "name": "light",
+        "server": "80b0defcd0b23807",
+        "version": 6,
+        "outputs": 1,
+        "exposeAsEntityConfig": "",
+        "entities": {
+            "entity": [
+                "light.esp32h2hello_blueled",
+                "light.esp32h2hello_dummy1",
+                "light.esp32h2hello_dummy2"
+            ],
+            "substring": [],
+            "regex": []
+        },
+        "outputInitially": false,
+        "stateType": "str",
+        "ifState": "",
+        "ifStateType": "str",
+        "ifStateOperator": "is",
+        "outputOnlyOnStateChange": false,
+        "for": "0",
+        "forType": "num",
+        "forUnits": "minutes",
+        "ignorePrevStateNull": false,
+        "ignorePrevStateUnknown": false,
+        "ignorePrevStateUnavailable": false,
+        "ignoreCurrentStateUnknown": true,
+        "ignoreCurrentStateUnavailable": true,
+        "outputProperties": [
+            {
+                "property": "payload",
+                "propertyType": "msg",
+                "value": "string",
+                "valueType": "entityState"
+            },
+            {
+                "property": "data",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "eventData"
+            },
+            {
+                "property": "topic",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "triggerId"
+            }
+        ],
+        "x": 50,
+        "y": 500,
+        "wires": [
+            [
+                "755f4593cad94ca0"
+            ]
+        ]
+    },
+    {
+        "id": "31f0cbdf6b651227",
+        "type": "api-current-state",
+        "z": "c1c0c66244e7b7f9",
+        "name": "current state",
+        "server": "80b0defcd0b23807",
+        "version": 3,
+        "outputs": 1,
+        "halt_if": "",
+        "halt_if_type": "str",
+        "halt_if_compare": "is",
+        "entity_id": "light.esp32h2hello_rgb_light",
+        "state_type": "str",
+        "blockInputOverrides": true,
+        "outputProperties": [
+            {
+                "property": "payload",
+                "propertyType": "msg",
+                "value": "string",
+                "valueType": "entityState"
+            },
+            {
+                "property": "data",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "entity"
+            }
+        ],
+        "for": "0",
+        "forType": "num",
+        "forUnits": "minutes",
+        "override_topic": false,
+        "state_location": "payload",
+        "override_payload": "msg",
+        "entity_location": "data",
+        "override_data": "msg",
+        "x": 270,
+        "y": 600,
+        "wires": [
+            [
+                "856279ac698bb84d"
+            ]
+        ]
+    },
+    {
+        "id": "755f4593cad94ca0",
+        "type": "function",
+        "z": "c1c0c66244e7b7f9",
+        "name": "light list",
+        "func": "let entities = [\n  \"light.esp32h2hello_blueled\",\n  \"light.esp32h2hello_dummy1\",\n  \"light.esp32h2hello_dummy2\"\n];\n\nlet out = [];\nfor (let e of entities) {\n  out.push({\n    entity_id: e,\n    domain: \"light\"\n    //total: entities.length\n  });\n}\n\nreturn [out];",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 240,
+        "y": 500,
+        "wires": [
+            [
+                "dd99c085dfb8858a"
+            ]
+        ]
+    },
+    {
+        "id": "dd99c085dfb8858a",
+        "type": "api-current-state",
+        "z": "c1c0c66244e7b7f9",
+        "name": "check entity",
+        "server": "80b0defcd0b23807",
+        "version": 3,
+        "outputs": 1,
+        "halt_if": "",
+        "halt_if_type": "str",
+        "halt_if_compare": "is",
+        "entity_id": "{{entity_id}}",
+        "state_type": "str",
+        "blockInputOverrides": true,
+        "outputProperties": [
+            {
+                "property": "payload",
+                "propertyType": "msg",
+                "value": "string",
+                "valueType": "entityState"
+            },
+            {
+                "property": "data",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "entity"
+            },
+            {
+                "property": "topic",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "triggerId"
+            }
+        ],
+        "for": "0",
+        "forType": "num",
+        "forUnits": "minutes",
+        "override_topic": false,
+        "state_location": "payload",
+        "override_payload": "msg",
+        "entity_location": "data",
+        "override_data": "msg",
+        "x": 390,
+        "y": 500,
+        "wires": [
+            [
+                "5ddc1dcde9064435"
+            ]
+        ]
+    },
+    {
+        "id": "5ddc1dcde9064435",
+        "type": "join",
+        "z": "c1c0c66244e7b7f9",
+        "name": "join",
+        "mode": "custom",
+        "build": "array",
+        "property": "payload",
+        "propertyType": "msg",
+        "key": "topic",
+        "joiner": "\\n",
+        "joinerType": "str",
+        "useparts": false,
+        "accumulate": false,
+        "timeout": "",
+        "count": "3",
+        "reduceRight": false,
+        "reduceExp": "",
+        "reduceInit": "",
+        "reduceInitType": "",
+        "reduceFixup": "",
+        "x": 530,
+        "y": 500,
+        "wires": [
+            [
+                "9a3804ac99ebeeba"
+            ]
+        ]
+    },
+    {
+        "id": "9a3804ac99ebeeba",
+        "type": "function",
+        "z": "c1c0c66244e7b7f9",
+        "name": "form light cmd",
+        "func": "const pkt = {\n  type:  21, //Light command\n  data1: (msg.payload[0] == \"on\")?1:0,\n  data2: (msg.payload[1] == \"on\")?1:0,\n  data3: (msg.payload[2] == \"on\")?1:0,\n  data4: 0,\n};\nmsg.payload = pkt;\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 680,
+        "y": 500,
+        "wires": [
+            [
+                "432e024cf7c52111"
+            ]
+        ]
+    },
+    {
+        "id": "dedfdf40106b6b35",
+        "type": "server-state-changed",
+        "z": "c1c0c66244e7b7f9",
+        "name": "rgb light",
+        "server": "80b0defcd0b23807",
+        "version": 6,
+        "outputs": 1,
+        "exposeAsEntityConfig": "",
+        "entities": {
+            "entity": [
+                "light.esp32h2hello_rgb_light"
+            ],
+            "substring": [],
+            "regex": []
+        },
+        "outputInitially": false,
+        "stateType": "str",
+        "ifState": "",
+        "ifStateType": "str",
+        "ifStateOperator": "is",
+        "outputOnlyOnStateChange": false,
+        "for": "0",
+        "forType": "num",
+        "forUnits": "minutes",
+        "ignorePrevStateNull": false,
+        "ignorePrevStateUnknown": false,
+        "ignorePrevStateUnavailable": false,
+        "ignoreCurrentStateUnknown": true,
+        "ignoreCurrentStateUnavailable": true,
+        "outputProperties": [
+            {
+                "property": "payload",
+                "propertyType": "msg",
+                "value": "string",
+                "valueType": "entityState"
+            },
+            {
+                "property": "data",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "eventData"
+            },
+            {
+                "property": "topic",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "triggerId"
+            }
+        ],
+        "x": 50,
+        "y": 600,
+        "wires": [
+            [
+                "31f0cbdf6b651227"
+            ]
+        ]
+    },
+    {
+        "id": "856279ac698bb84d",
+        "type": "function",
+        "z": "c1c0c66244e7b7f9",
+        "name": "form RGB",
+        "func": "let p = msg.data || {};\nlet attr = p.attributes || {};\n\nlet type = 24;\n\n// ---- data1: on/off ----\nlet data1 = (p.state === \"on\") ? 1 : 0;\n\nlet brightness = attr.brightness ?? 0;\nbrightness = brightness & 0xFF;\n\nlet rgb = attr.rgb_color || [0, 0, 0];\n\nlet red   = (rgb[0] ?? 0) & 0xFF;\nlet green = (rgb[1] ?? 0) & 0xFF;\nlet blue  = (rgb[2] ?? 0) & 0xFF;\n\n// data2: high = Red, low = Brightness\nlet data2 = (red << 8) | brightness;\n\n// data3: high = Blue, low = Green\nlet data3 = (blue << 8) | green;\n\n// data4: not use\nlet data4 = 0;\n\n// ---- xuất ra ----\nmsg.type  = type;\nmsg.data1 = data1;\nmsg.data2 = data2;\nmsg.data3 = data3;\nmsg.data4 = data4;\n\nconst pkt = {\n  type:  type, //Lamp command\n  data1: data1,\n  data2: data2,\n  data3: data3,\n  data4: data4,\n};\nmsg.payload = pkt;\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 480,
+        "y": 600,
+        "wires": [
+            [
+                "432e024cf7c52111"
+            ]
+        ]
+    },
+    {
+        "id": "79540064fb90ed2d",
+        "type": "link out",
+        "z": "c1c0c66244e7b7f9",
+        "name": "link out 2",
+        "mode": "link",
+        "links": [
+            "26d295978393b6db",
+            "afbc9b28244ff3e8"
+        ],
+        "x": 495,
+        "y": 320,
+        "wires": []
+    },
+    {
+        "id": "26d295978393b6db",
+        "type": "link in",
+        "z": "c1c0c66244e7b7f9",
+        "name": "in light",
+        "links": [
+            "79540064fb90ed2d"
+        ],
+        "x": 125,
+        "y": 540,
+        "wires": [
+            [
+                "755f4593cad94ca0"
+            ]
+        ]
+    },
+    {
+        "id": "afbc9b28244ff3e8",
+        "type": "link in",
+        "z": "c1c0c66244e7b7f9",
+        "name": "in grb",
+        "links": [
+            "79540064fb90ed2d"
+        ],
+        "x": 125,
+        "y": 640,
+        "wires": [
+            [
+                "31f0cbdf6b651227"
+            ]
+        ]
+    },
+    {
+        "id": "7afa20d6a194cba1",
+        "type": "api-call-service",
+        "z": "c1c0c66244e7b7f9",
+        "name": "",
+        "server": "80b0defcd0b23807",
+        "version": 7,
+        "debugenabled": false,
+        "action": "light.{{payload.service}}",
+        "floorId": [],
+        "areaId": [],
+        "deviceId": [],
+        "entityId": [
+            "{{payload.entity_id}}"
+        ],
+        "labelId": [],
+        "data": "",
+        "dataType": "jsonata",
+        "mergeContext": "",
+        "mustacheAltTags": false,
+        "outputProperties": [],
+        "queue": "none",
+        "blockInputOverrides": true,
+        "domain": "light",
+        "service": "{{payload",
+        "x": 850,
+        "y": 160,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "14672e1121c87988",
+        "type": "api-call-service",
+        "z": "c1c0c66244e7b7f9",
+        "name": "",
+        "server": "80b0defcd0b23807",
+        "version": 7,
+        "debugenabled": false,
+        "action": "light.{{payload.service}}",
+        "floorId": [],
+        "areaId": [],
+        "deviceId": [],
+        "entityId": [
+            "{{payload.entity_id}}"
+        ],
+        "labelId": [],
+        "data": "payload.data",
+        "dataType": "jsonata",
+        "mergeContext": "",
+        "mustacheAltTags": false,
+        "outputProperties": [],
+        "queue": "none",
+        "blockInputOverrides": true,
+        "domain": "light",
+        "service": "{{payload",
+        "x": 850,
+        "y": 280,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "b006d283ceb9fb51",
+        "type": "link in",
+        "z": "84f060fbe22efd5f",
+        "name": "link example",
+        "links": [
+            "8aba9e38d633459a"
+        ],
+        "x": 75,
+        "y": 220,
+        "wires": [
+            [
+                "4f3327b05f98b272"
+            ]
+        ]
+    },
+    {
+        "id": "4f3327b05f98b272",
+        "type": "function",
+        "z": "84f060fbe22efd5f",
+        "name": "device manager",
+        "func": "\nconst pkt = msg.payload;\n//const id = pkt.id.toString();\n\nlet devices = flow.get(\"devices\") || {};\n\n// init device if first seen\nif (!devices) {\n    devices = {\n        id: pkt.id,\n        last_seq: pkt.seq,\n        last_seen: pkt.ts,\n        ip: pkt.ip,\n        port: pkt.port,\n        online: true\n    };\n}\nconst lastState = devices.online;\n\n// heartbeat handling\nif (pkt.type === 255) {\n    devices.id        = pkt.id\n    devices.last_seen = pkt.ts;\n    devices.last_seq  = pkt.seq;\n    devices.ip        = pkt.ip;\n    devices.port      = pkt.port;\n    devices.online    = (pkt.data3 === 1)?true:false;\n}\n\n// special message for ota\nlet isOta = flow.get(\"is_ota\");\nif (isOta === undefined) {\n    isOta = false;\n    flow.set(\"is_ota\", false);\n}\n\nif (pkt.type === 254) {\n    flow.set(\"is_ota\", (pkt.data1===0)?false:true);\n}\n\n// save registry\nflow.set(\"devices\", devices);\n\n// set\n//flow.set(\"is_ota\", true);\n\n// get\n//const isOta = flow.get(\"is_ota\") || false;\n\n// pass through for further logic\nmsg.payload = pkt;\n\nif (!lastState && devices.online) {\n    const isOta = flow.get(\"is_ota\") || false;\n    let msg1 = { payload: isOta };\n    return [msg, msg, msg1];\n}\nelse{\n    return [null, msg, null];\n}\n\n",
+        "outputs": 3,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "// Code added here will be run once\n// whenever the node is started.\n//flow.set(\"is_ota\", false);",
+        "finalize": "",
+        "libs": [],
+        "x": 200,
+        "y": 220,
+        "wires": [
+            [
+                "9090d114223e9c26"
+            ],
+            [
+                "cc81b1e6b47584a3"
+            ],
+            [
+                "4ab6bea5f2ce993b"
+            ]
+        ]
+    },
+    {
+        "id": "2b6fbb6a07da72c4",
+        "type": "inject",
+        "z": "84f060fbe22efd5f",
+        "name": "",
+        "props": [],
+        "repeat": "5",
+        "crontab": "",
+        "once": true,
+        "onceDelay": "5",
+        "topic": "",
+        "x": 170,
+        "y": 480,
+        "wires": [
+            [
+                "f714fd1657abb98a"
+            ]
+        ]
+    },
+    {
+        "id": "f714fd1657abb98a",
+        "type": "function",
+        "z": "84f060fbe22efd5f",
+        "name": "check heartbeat msg",
+        "func": "const devices = flow.get(\"devices\") || {};\nconst now = Date.now();\nconst TIMEOUT = 15000; // 15s = 3 heartbeat\n\nlet offline = [];\n\n    if (devices.online &&\n        now - devices.last_seen > TIMEOUT) {\n        devices.online = false;\n    }\n\n\nflow.set(\"devices\", devices);\nreturn null;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 380,
+        "y": 480,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "cc81b1e6b47584a3",
+        "type": "function",
+        "z": "84f060fbe22efd5f",
+        "name": "parse cmd",
+        "func": "const buf = msg.payload;\nif (buf.type === 255){//heart beat message\n    const isOta = flow.get(\"is_ota\") || false;\n    const remote = {\n        id: buf.id,\n        ota: (isOta)?\"true\":\"false\",\n        charging: (buf.data2===0)?\"false\":\"true\",\n        wake: (buf.data3===0)?\"false\":\"true\",\n        bat: buf.data4,\n        ip: buf.ip,\n        port:   buf.port,\n        ts:     buf.ts\n    };\n    msg.payload = remote;\n    return [msg,null,null,null,null];\n}\n\nelse if (buf.type === 11){\n    const light = [\n        (buf.data1===0)?false:true,\n        (buf.data2===0)?false:true,\n        (buf.data3===0)?false:true,\n        (buf.data4===0)?false:true\n    ];\n    msg.payload = light;\n    return [null,msg,null,null,null];\n}\nelse if (buf.type === 12){\n    const ac = {\n        mode: buf.data1,\n        temp: buf.data2,\n        fan_mode: buf.data3,\n        swing: buf.data4\n    };\n    msg.payload = ac;\n    return [null,null,msg,null,null];\n}\nelse if (buf.type === 13){\n    const fan = {\n        power: (buf.data1===0)?false:true,\n        speed: buf.data2,\n        swing: (buf.data3===0)?false:true,\n    };\n    msg.payload = fan;\n    return [null,null,null,msg,null];\n}\nelse if (buf.type === 14){\n    const lamp = [\n        buf.data1,\n        buf.data2,\n        buf.data3,\n        buf.data4\n    ];\n    msg.payload = lamp;\n    return [null,null,null,null,msg];\n}\nreturn null;",
+        "outputs": 5,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 410,
+        "y": 280,
+        "wires": [
+            [
+                "738e90952e177316"
+            ],
+            [
+                "3f1553a62dbd01f3"
+            ],
+            [
+                "a83e28442aebc7d0"
+            ],
+            [
+                "e746401a7de86c9e"
+            ],
+            [
+                "5304d208c384af15"
+            ]
+        ]
+    },
+    {
+        "id": "738e90952e177316",
+        "type": "function",
+        "z": "84f060fbe22efd5f",
+        "name": "remote info",
+        "func": "const pkt = msg.payload;\nconst id = pkt.id;\n\nconst local = new Date(pkt.ts).toLocaleString(\"vi-VN\", {\n    hour12: false\n});\n\nmsg.topic = `remote/${id}/state`;\nmsg.payload = {\n  battery: pkt.bat,\n  charging: pkt.charging,\n  ip: pkt.ip,\n  port: pkt.port,\n  wake: pkt.wake,\n  lastseen: local,\n  ota: pkt.ota\n};\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 630,
+        "y": 220,
+        "wires": [
+            [
+                "19fa602cd4f0aeee"
+            ]
+        ]
+    },
+    {
+        "id": "3f1553a62dbd01f3",
+        "type": "function",
+        "z": "84f060fbe22efd5f",
+        "name": "light",
+        "func": "let lights = [\n  \"light.esp32h2hello_blueled\",\n  \"light.esp32h2hello_dummy1\",\n  \"light.esp32h2hello_dummy2\"\n];\n\nlet states = msg.payload; \n\nlet messages = [];\n\nfor (let i = 0; i < lights.length; i++) {\n\n    messages.push({\n        payload: {\n            domain: \"light\",\n            service: states[i] ? \"turn_on\" : \"turn_off\",\n            entity_id: lights[i]\n        }\n    });\n}\n\nreturn [messages];",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 610,
+        "y": 260,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "a83e28442aebc7d0",
+        "type": "function",
+        "z": "84f060fbe22efd5f",
+        "name": "ac",
+        "func": "\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 610,
+        "y": 300,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "e746401a7de86c9e",
+        "type": "function",
+        "z": "84f060fbe22efd5f",
+        "name": "fan",
+        "func": "\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 610,
+        "y": 340,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "5304d208c384af15",
+        "type": "function",
+        "z": "84f060fbe22efd5f",
+        "name": "lamp",
+        "func": "const buf = msg.payload;\nfunction clamp(val, min, max) {\n    val = Number(val);\n    if (isNaN(val)) return null;\n    return Math.min(Math.max(val, min), max);\n}\n\nlet entity = \"light.esp32h2hello_rgb_light\";\n\n// --- validate state ---\nlet state = (buf[0] === 1) ? 1 : 0;\n\nif (state === 0) {\n    msg.payload = {\n        domain: \"light\",\n        service: \"turn_off\",\n        entity_id: entity,\n        data: {}\n    };\n    return msg;\n}\n\n// ---- TURN ON ----\nlet data = {};\n\n// --- validate brightness ---\nlet brightness = clamp(buf[1] & 0xff, 1, 255);\n\nif (brightness !== null) {\n    data.brightness = brightness;\n}\n\n// --- validate rgb ---\nlet rgb = [(buf[1] & 0xff00) >> 8,\n            buf[2] & 0xff,\n            (buf[2] & 0xff00) >> 8];\n\nif (Array.isArray(rgb) && rgb.length === 3) {\n\n    let r = clamp(rgb[0], 1, 255);\n    let g = clamp(rgb[1], 1, 255);\n    let b = clamp(rgb[2], 1, 255);\n\n\n    if (r !== null && g !== null && b !== null) {\n\n        if (!(r === 0 && g === 0 && b === 0)) {\n            data.rgb_color = [r, g, b];\n        }\n    }\n}\n\n\nmsg.payload = {\n    domain: \"light\",\n    entity_id: entity,\n    service: \"turn_on\",\n    data: data\n};\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 610,
+        "y": 380,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "19fa602cd4f0aeee",
+        "type": "mqtt out",
+        "z": "84f060fbe22efd5f",
+        "name": "HA mqtt",
+        "topic": "",
+        "qos": "0",
+        "retain": "false",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "7358b249563a73d7",
+        "x": 800,
+        "y": 160,
+        "wires": []
+    },
+    {
+        "id": "9090d114223e9c26",
+        "type": "function",
+        "z": "84f060fbe22efd5f",
+        "name": "discoveryMqtt",
+        "func": "const id = msg.payload.id;\nif (id == null) {\n    node.error(\"Missing msg.id\");\n    return null;\n}\n\nmsg.topic = `homeassistant/device/remote_${id}/config`;\n\nmsg.payload = {\n  dev: {\n    ids: id,\n    name: `Remote ${id}`,\n    mf: \"DIY\",\n    mdl: \"ESP32-H2 Remote\",\n    sw: \"1.0\",\n    sn: id,\n    hw: \"rev1\"\n  },\n\n  o: {\n    name: \"udp2mqtt\",\n    sw: \"0.1\",\n    url: \"http://local-node-red\"\n  },\n\n  state_topic: `remote/${id}/state`,\n  qos: 1,\n\n  cmps: {\n    ota: {\n      p: \"switch\",\n      name: \"OTA\",\n      unique_id: `remote_${id}_ota`,\n      command_topic: `remote/${id}/cmd/ota`,\n      value_template: \"{{ value_json.ota }}\",\n      payload_on: \"true\",\n      payload_off: \"false\"\n    },\n\n    battery: {\n      p: \"sensor\",\n      name: \"Battery\",\n      device_class: \"battery\",\n      unit_of_measurement: \"%\",\n      value_template: \"{{ value_json.battery }}\",\n      unique_id: `remote_${id}_battery`\n    },\n\n    charging: {\n      p: \"binary_sensor\",\n      name: \"Charging\",\n      device_class: \"battery_charging\",\n      value_template: \"{{ value_json.charging }}\",\n      payload_on: \"true\",\n      payload_off: \"false\",\n      unique_id: `remote_${id}_charging`\n    },\n    wake: {\n      p: \"binary_sensor\",\n      name: \"wake\",\n      value_template: \"{{ value_json.wake }}\",\n      payload_on: \"true\",\n      payload_off: \"false\",\n      unique_id: `remote_${id}_wake`\n    },\n    ip: {\n      p: \"sensor\",\n      name: \"IP Address\",\n      value_template: \"{{ value_json.ip }}\",\n      unique_id: `remote_${id}_ip`\n    },\n\n    port: {\n      p: \"sensor\",\n      name: \"Port\",\n      value_template: \"{{ value_json.port }}\",\n      unique_id: `remote_${id}_port`\n    },\n    last_seen: {\n      p: \"sensor\",\n      name: \"Last Seen\",\n      value_template: \"{{ value_json.lastseen }}\",\n      unique_id: `remote_${id}_lastseen`\n    }\n  }\n};\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 420,
+        "y": 160,
+        "wires": [
+            [
+                "19fa602cd4f0aeee"
+            ]
+        ]
+    },
+    {
+        "id": "3bf615e8fb326b6f",
+        "type": "mqtt in",
+        "z": "84f060fbe22efd5f",
+        "name": "HA cmd ota",
+        "topic": "remote/69/cmd/ota",
+        "qos": "0",
+        "datatype": "auto-detect",
+        "broker": "7358b249563a73d7",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 170,
+        "y": 420,
+        "wires": [
+            [
+                "4ab6bea5f2ce993b"
+            ]
+        ]
+    },
+    {
+        "id": "4ab6bea5f2ce993b",
+        "type": "function",
+        "z": "84f060fbe22efd5f",
+        "name": "form OTA cmd",
+        "func": "const pkt = {\n  type:  253, //Set OTA command\n  data1: (msg.payload)?1:0,\n  data2: 0,\n  data3: 0,\n  data4: 0,\n};\nmsg.payload = pkt;\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 360,
+        "y": 420,
+        "wires": [
+            [
+                "28a2a2fc3237319c"
+            ]
+        ]
+    },
+    {
+        "id": "28a2a2fc3237319c",
+        "type": "function",
+        "z": "84f060fbe22efd5f",
+        "name": "create UDP packet",
+        "func": "const devices = flow.get(\"devices\");\nconst dev_id = devices.id;\nconst pkt = msg.payload;\n\nlet counter = flow.get(\"counter\");\nif (counter === undefined) {\n    counter = 0;\n    flow.set(\"counter\", 0);\n}\n\nif (!devices || !devices.online) return null;\n\n// build binary packet\nconst buf = Buffer.alloc(12);\nbuf.writeUInt8(dev_id, 0);\nbuf.writeUInt8(pkt.type, 1);\nbuf.writeUInt16LE(counter & 0xffff, 2);\nbuf.writeUInt16LE(pkt.data1, 4);\nbuf.writeUInt16LE(pkt.data2, 6);\nbuf.writeUInt16LE(pkt.data3, 8);\nbuf.writeUInt16LE(pkt.data4, 10);\n\ncounter++;\nflow.set(\"counter\", counter);\n\nmsg.payload = buf;\nmsg.ip = devices.ip;\nmsg.port = devices.port;\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 590,
+        "y": 420,
+        "wires": [
+            [
+                "ef3fe7363de538fc"
+            ]
+        ]
+    },
+    {
+        "id": "ef3fe7363de538fc",
+        "type": "link out",
+        "z": "84f060fbe22efd5f",
+        "name": "frome remote 1",
+        "mode": "link",
+        "links": [
+            "2df6a19b83996a59"
+        ],
+        "x": 725,
+        "y": 420,
+        "wires": []
+    },
+    {
+        "id": "a1f8552190a066a8",
+        "type": "global-config",
+        "env": [],
+        "modules": {
+            "node-red-contrib-home-assistant-websocket": "0.80.3"
+        }
+    }
+]
